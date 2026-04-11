@@ -35,15 +35,21 @@ export default function AssessmentPage() {
     setAgentMode('idle')
   }, [])
 
-  const { status, startSession, endSession } = useElevenLabs({
+  const handleStartFailed = useCallback(() => {
+    setHasStarted(false)
+  }, [])
+
+  const { status, startSession, endSession, connectionError, clearConnectionError } = useElevenLabs({
     onMessage: handleMessage,
     onStatusChange: handleStatusChange,
     onComplete: handleComplete,
+    onStartFailed: handleStartFailed,
   })
 
   const orbState = toOrbState(status, agentMode)
 
   async function handleStart() {
+    clearConnectionError()
     setHasStarted(true)
     await startSession()
   }
@@ -130,6 +136,17 @@ export default function AssessmentPage() {
             </p>
             {status === 'connecting' && (
               <p className="text-xs text-white/30 mt-1">Requesting microphone access...</p>
+            )}
+            {connectionError && (
+              <div className="mt-4 max-w-md mx-auto rounded-xl border border-red-500/30 bg-red-950/40 px-4 py-3 text-left">
+                <p className="text-red-200 text-xs leading-relaxed">{connectionError}</p>
+                <p className="text-white/40 text-xs mt-2">
+                  Tip: WebSocket is the default. For WebRTC in dev, add{' '}
+                  <code className="text-white/60">ELEVENLABS_API_KEY</code> to{' '}
+                  <code className="text-white/60">.env</code> and run{' '}
+                  <code className="text-white/60">npm run dev</code> so the Vite proxy can mint a token.
+                </p>
+              </div>
             )}
           </div>
 

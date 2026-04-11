@@ -1,166 +1,131 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// useElevenLabs.js
-//
-// HOW TO INTEGRATE YOUR REAL ELEVENLABS AGENT:
-// 1. Run: npm install @11labs/react
-// 2. Replace YOUR_AGENT_ID_HERE with your actual agent ID
-// 3. Uncomment the REAL INTEGRATION block below
-// 4. Delete the STUB simulation block
-// ─────────────────────────────────────────────────────────────────────────────
-
 import { useState, useCallback, useRef } from 'react'
+import { useConversation } from '@elevenlabs/react'
+import { sourceInfo } from '@elevenlabs/client/internal'
 
-const ELEVENLABS_AGENT_ID = 'YOUR_AGENT_ID_HERE'
+/** Override with VITE_ELEVENLABS_AGENT_ID in .env */
+const ELEVENLABS_AGENT_ID =
+  import.meta.env.VITE_ELEVENLABS_AGENT_ID ?? 'agent_8301knz2c6kaefdb9q8c41y7cc9e'
 
-export function useElevenLabs({ onMessage, onStatusChange, onComplete }) {
+/**
+ * websocket — connects directly (works for typical public agents).
+ * webrtc — lower latency; in dev, token is fetched via /elevenlabs-api proxy so ELEVENLABS_API_KEY applies.
+ * In production, use a backend token endpoint or keep websocket unless the agent allows unauthenticated token fetch.
+ */
+const CONNECTION_TYPE =
+  import.meta.env.VITE_ELEVENLABS_CONNECTION === 'webrtc' ? 'webrtc' : 'websocket'
+
+/** Optional: only for WebSocket auth (subprotocol). Prefer server-side secrets in production. */
+const WS_AUTHORIZATION = import.meta.env.VITE_ELEVENLABS_API_KEY
+
+export function useElevenLabs({ onMessage, onStatusChange, onComplete, onStartFailed }) {
   const [status, setStatus] = useState('idle')
-  const sessionRef = useRef(null)
+  const [connectionError, setConnectionError] = useState(null)
+  const wasConnectedRef = useRef(false)
 
-  const updateStatus = useCallback((s) => {
-    setStatus(s)
-    onStatusChange?.(s)
-  }, [onStatusChange])
+  const clearConnectionError = useCallback(() => setConnectionError(null), [])
 
-  // ── START SESSION ──────────────────────────────────────────────────────────
+  const { startSession: connectSession, endSession: hangUp } = useConversation({
+    onConnect: () => {
+      wasConnectedRef.current = true
+      setConnectionError(null)
+      setStatus('active')
+      onStatusChange?.('active')
+    },
+    onDisconnect: () => {
+      const hadSession = wasConnectedRef.current
+      wasConnectedRef.current = false
+      if (!hadSession) {
+        setStatus('idle')
+        onStatusChange?.('idle')
+        onStartFailed?.()
+        return
+      }
+      setStatus('ended')
+      onStatusChange?.('ended')
+      onComplete?.()
+    },
+    onMessage: (payload) => {
+      onMessage?.({
+        role: payload.role === 'agent' ? 'agent' : 'user',
+        text: payload.message,
+      })
+    },
+    onError: (message) => {
+      console.error('[ElevenLabs]', message)
+      setConnectionError(typeof message === 'string' ? message : 'Connection error')
+      const hadSession = wasConnectedRef.current
+      wasConnectedRef.current = false
+      if (!hadSession) {
+        setStatus('idle')
+        onStatusChange?.('idle')
+        onStartFailed?.()
+        return
+      }
+      setStatus('ended')
+      onStatusChange?.('ended')
+      onComplete?.()
+    },
+    onModeChange: ({ mode }) => {
+      onStatusChange?.(mode === 'speaking' ? 'speaking' : 'listening')
+    },
+  })
+
+  const fetchTokenViaDevProxy = useCallback(async () => {
+    const { name, version } = sourceInfo
+    const base = `${window.location.origin}/elevenlabs-api`
+    const params = new URLSearchParams({
+      agent_id: ELEVENLABS_AGENT_ID,
+      source: name,
+      version,
+    })
+    const res = await fetch(`${base}/v1/convai/conversation/token?${params}`)
+    if (!res.ok) {
+      const hint =
+        res.status === 401
+          ? ' Add ELEVENLABS_API_KEY to .env for this dev server (used only by the Vite proxy), or use connection type websocket.'
+          : ''
+      throw new Error(`Token request failed (${res.status}).${hint}`)
+    }
+    const data = await res.json()
+    if (!data?.token) throw new Error('No conversation token from API')
+    return data.token
+  }, [])
+
   const startSession = useCallback(async () => {
-    updateStatus('connecting')
+    setConnectionError(null)
+    setStatus('connecting')
+    onStatusChange?.('connecting')
 
-    // ── STUB — remove this when you plug in real ElevenLabs ───────────────
-    if (ELEVENLABS_AGENT_ID === 'YOUR_AGENT_ID_HERE') {
-      console.log('[ElevenLabs] STUB mode — replace ELEVENLABS_AGENT_ID to use real agent')
-      await simulateConversation({ onMessage, updateStatus, onComplete })
-      return
+    try {
+      if (CONNECTION_TYPE === 'webrtc' && import.meta.env.DEV) {
+        const token = await fetchTokenViaDevProxy()
+        connectSession({
+          conversationToken: token,
+          connectionType: 'webrtc',
+        })
+        return
+      }
+
+      const opts = {
+        agentId: ELEVENLABS_AGENT_ID,
+        connectionType: CONNECTION_TYPE,
+      }
+      if (WS_AUTHORIZATION) opts.authorization = WS_AUTHORIZATION
+
+      connectSession(opts)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to start session'
+      console.error('[ElevenLabs]', e)
+      setConnectionError(msg)
+      setStatus('idle')
+      onStatusChange?.('idle')
+      onStartFailed?.()
     }
-    // ── END STUB ────────────────────────────────────────────────────────────
+  }, [connectSession, fetchTokenViaDevProxy, onStartFailed, onStatusChange])
 
-    // ── REAL ELEVENLABS INTEGRATION ─────────────────────────────────────────
-    // Uncomment this block when you have your agent ID ready:
-    //
-    // import { Conversation } from '@11labs/react'
-    //
-    // const conversation = await Conversation.startSession({
-    //   agentId: ELEVENLABS_AGENT_ID,
-    //   onMessage: ({ message, source }) => {
-    //     onMessage?.({
-    //       role: source === 'ai' ? 'agent' : 'user',
-    //       text: message,
-    //     })
-    //   },
-    //   onModeChange: ({ mode }) => {
-    //     if (mode.mode === 'listening') updateStatus('listening')
-    //     if (mode.mode === 'speaking')  updateStatus('speaking')
-    //   },
-    //   onDisconnect: () => {
-    //     updateStatus('ended')
-    //     onComplete?.()
-    //   },
-    // })
-    //
-    // sessionRef.current = conversation
-    // updateStatus('active')
-    // ── END REAL INTEGRATION ────────────────────────────────────────────────
+  const endSession = useCallback(() => {
+    hangUp()
+  }, [hangUp])
 
-  }, [onMessage, updateStatus, onComplete])
-
-  // ── END SESSION ────────────────────────────────────────────────────────────
-  const endSession = useCallback(async () => {
-    if (sessionRef.current) {
-      await sessionRef.current.endSession()
-      sessionRef.current = null
-    }
-    updateStatus('ended')
-    onComplete?.()
-  }, [updateStatus, onComplete])
-
-  return { status, startSession, endSession }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// STUB: Simulates the full Agent Jake conversation for UI testing
-// Delete this entire function when switching to real ElevenLabs
-// ─────────────────────────────────────────────────────────────────────────────
-async function simulateConversation({ onMessage, updateStatus, onComplete }) {
-  const script = [
-    {
-      role: 'agent',
-      text: "Hi! I'm Agent Jake, your AI home insurance advisor. I'll ask you a few quick questions about your property to calculate your personalized risk score. What's your home address and ZIP code?",
-      state: 'speaking',
-      pause: 4000,
-    },
-    {
-      role: 'user',
-      text: '456 Oak Avenue, ZIP 75080',
-      state: 'listening',
-      pause: 2000,
-    },
-    {
-      role: 'agent',
-      text: "Got it — I'm looking up flood zone data and fire station proximity for that address now. What year was your home built, and what type of roof do you have?",
-      state: 'speaking',
-      pause: 4000,
-    },
-    {
-      role: 'user',
-      text: 'Built in 1987, asphalt shingle roof replaced in 2009.',
-      state: 'listening',
-      pause: 2000,
-    },
-    {
-      role: 'agent',
-      text: 'Thanks. Has your electrical system been updated in the last 20 years, and do you know what type of pipes your home has?',
-      state: 'speaking',
-      pause: 3500,
-    },
-    {
-      role: 'user',
-      text: "No, the electrical hasn't been updated. And I think we have galvanized steel pipes.",
-      state: 'listening',
-      pause: 2000,
-    },
-    {
-      role: 'agent',
-      text: "I see — those are important factors. Do you have a security system? And are there any swimming pools or trampolines on the property?",
-      state: 'speaking',
-      pause: 3500,
-    },
-    {
-      role: 'user',
-      text: 'No security system. No pool or trampoline.',
-      state: 'listening',
-      pause: 2000,
-    },
-    {
-      role: 'agent',
-      text: 'Last question — any insurance claims in the last 5 years?',
-      state: 'speaking',
-      pause: 2500,
-    },
-    {
-      role: 'user',
-      text: 'None.',
-      state: 'listening',
-      pause: 1500,
-    },
-    {
-      role: 'agent',
-      text: "Perfect. I have everything I need. Let me calculate your risk score now — analyzing your flood zone, fire station distance, weather alerts, and all your property details.",
-      state: 'thinking',
-      pause: 3000,
-    },
-  ]
-
-  updateStatus('active')
-
-  for (const line of script) {
-    updateStatus(line.state)
-    onMessage?.({ role: line.role, text: line.text })
-    await sleep(line.pause)
-  }
-
-  updateStatus('ended')
-  onComplete?.()
-}
-
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms))
+  return { status, startSession, endSession, connectionError, clearConnectionError }
 }
