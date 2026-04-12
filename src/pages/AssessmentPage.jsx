@@ -76,7 +76,7 @@ export default function AssessmentPage() {
   }
 
   function handleViewResults() {
-    navigate('/')
+    navigate('/results', { state: { result: MOCK_RESULT } })
   }
 
   return (
