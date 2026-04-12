@@ -1,7 +1,7 @@
-const DEFAULT_BASE = 'http://localhost:8000'
+import { backendBaseUrl } from '../config/backendBase.js'
 
 function apiBase() {
-  return String(import.meta.env.VITE_API_BASE ?? DEFAULT_BASE).replace(/\/$/, '')
+  return backendBaseUrl()
 }
 
 function formatDetail(body) {

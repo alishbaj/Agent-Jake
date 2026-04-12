@@ -1,13 +1,10 @@
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useConversationClientTool } from '@elevenlabs/react'
 import Navbar from '../components/Navbar'
 import VoiceOrb from '../components/VoiceOrb'
 import TranscriptPanel from '../components/TranscriptPanel'
 import { useElevenLabs } from '../hooks/useElevenLabs'
 import { useLocationSession } from '../session/LocationSessionContext.jsx'
-import { getLocationData } from '../api/riskApi.js'
-import { answerFromLocationPayload } from '../session/propertyFactAnswer.js'
 
 function toOrbState(sessionStatus, agentMode) {
   if (sessionStatus === 'idle' || sessionStatus === 'connecting') return 'idle'
@@ -17,36 +14,11 @@ function toOrbState(sessionStatus, agentMode) {
 
 export default function AssessmentPage() {
   const navigate = useNavigate()
-  const { locationPayload, setLocationPayload, loadError, setLoadError, loading, setLoading, clearLocation } =
-    useLocationSession()
+  const { clearLocation } = useLocationSession()
   const [messages, setMessages] = useState([])
   const [agentMode, setAgentMode] = useState('idle')
   const [isComplete, setIsComplete] = useState(false)
   const [hasStarted, setHasStarted] = useState(false)
-
-  useConversationClientTool('set_property_address', async ({ address }) => {
-    const raw = String(address ?? '').trim()
-    if (!raw) return 'No address was provided to the tool.'
-    setLoading(true)
-    setLoadError(null)
-    try {
-      const data = await getLocationData(raw)
-      setLocationPayload(data)
-      const label = data?.formatted_address ?? raw
-      return `Property data loaded successfully for ${label}. You can now answer factual questions using answer_property_question.`
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Request failed'
-      setLoadError(msg)
-      setLocationPayload(null)
-      return `Failed to load property data: ${msg}`
-    } finally {
-      setLoading(false)
-    }
-  })
-
-  useConversationClientTool('answer_property_question', async ({ category, question }) => {
-    return answerFromLocationPayload(locationPayload, String(category ?? ''), String(question ?? ''))
-  })
 
   const handleMessage = useCallback((msg) => {
     setMessages((prev) => [...prev, msg])
@@ -183,20 +155,6 @@ export default function AssessmentPage() {
                   <code className="text-white/60">.env</code> and run{' '}
                   <code className="text-white/60">npm run dev</code> so the Vite proxy can mint a token.
                 </p>
-              </div>
-            )}
-            {(loading || loadError || locationPayload) && (
-              <div className="mt-4 max-w-md mx-auto rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left text-xs">
-                {loading && <p className="text-sf-gold/90">Loading location data from API…</p>}
-                {loadError && !loading && <p className="text-amber-200/90">API: {loadError}</p>}
-                {locationPayload && !loading && (
-                  <p className="text-sf-green/90">
-                    Session data loaded:{' '}
-                    <span className="text-white font-medium">
-                      {locationPayload.formatted_address ?? locationPayload.address}
-                    </span>
-                  </p>
-                )}
               </div>
             )}
           </div>
