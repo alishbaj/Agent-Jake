@@ -1,13 +1,15 @@
-export default function VoiceOrb({ state }) {
+export default function VoiceOrb({ state, started }) {
   const isListening = state === 'listening'
   const isSpeaking = state === 'speaking'
   const isThinking = state === 'thinking'
   const isIdle = state === 'idle'
 
   return (
-    <div className="relative flex items-center justify-center w-56 h-56">
+    <div className={`relative flex items-center justify-center transition-all duration-700 ${
+      started ? 'w-48 h-48' : 'w-64 h-64'
+    }`}>
 
-      {/* Pulse rings — only when active */}
+      {/* Pulse rings */}
       {(isListening || isSpeaking) && (
         <>
           <div className="absolute inset-0 rounded-full border-2 border-red-500/30 orb-ring" />
@@ -20,20 +22,20 @@ export default function VoiceOrb({ state }) {
 
       {/* Glow ring */}
       <div
-        className={`absolute w-48 h-48 rounded-full transition-all duration-700 ${
+        className={`absolute inset-2 rounded-full transition-all duration-700 ${
           isListening
             ? 'bg-red-500/15 scale-110'
             : isSpeaking
             ? 'bg-blue-900/15 scale-105'
             : isThinking
-            ? 'bg-yellow-400/10 scale-100'
-            : 'bg-gray-100 scale-100'
+            ? 'bg-yellow-400/10'
+            : 'bg-gray-800/50'
         }`}
       />
 
       {/* Main orb */}
       <div
-        className={`relative z-10 w-40 h-40 rounded-full flex flex-col items-center justify-center shadow-2xl transition-all duration-500 overflow-hidden ${
+        className={`relative z-10 w-full h-full rounded-full flex flex-col items-center justify-center shadow-2xl transition-all duration-500 overflow-hidden ${
           isListening
             ? 'bg-gradient-to-br from-red-600 to-red-800'
             : isSpeaking
@@ -48,7 +50,7 @@ export default function VoiceOrb({ state }) {
           src="/agent-jake.png"
           alt="Agent Jake"
           className={`absolute inset-0 w-full h-full object-cover rounded-full transition-opacity duration-300 ${
-            isSpeaking || isListening ? 'opacity-30' : 'opacity-60'
+            isSpeaking || isListening ? 'opacity-25' : 'opacity-55'
           }`}
           onError={(e) => { e.target.style.display = 'none' }}
         />
@@ -102,12 +104,11 @@ export default function VoiceOrb({ state }) {
             </>
           )}
 
-          {isIdle && (
-            <span className="text-white/50 text-xs font-semibold tracking-widest uppercase">
-              Ready
+          {isIdle && !started && (
+            <span className="text-white/40 text-xs font-semibold tracking-widest uppercase">
+              Agent Jake
             </span>
           )}
-
         </div>
       </div>
     </div>
