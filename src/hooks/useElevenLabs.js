@@ -56,6 +56,7 @@ export function useElevenLabs({ onMessage, onStatusChange, onComplete, onStartFa
         const flood = /** @type {Record<string, unknown>} */ (data.flood_zone ?? {})
         const fire = /** @type {Record<string, unknown>} */ (data.fire_station ?? {})
         const wx = /** @type {Record<string, unknown>} */ (data.weather_alerts ?? {})
+        const census = /** @type {Record<string, unknown>} */ (data.census ?? {})
 
         switch (cat) {
           case 'square_footage': {
@@ -63,13 +64,14 @@ export function useElevenLabs({ onMessage, onStatusChange, onComplete, onStartFa
             return v != null && v !== '' ? String(v) : ''
           }
           case 'flood': {
-            const v = flood.risk_level
-            return v != null && v !== '' ? String(v) : ''
+            const risk = flood.risk_level != null && flood.risk_level !== '' ? String(flood.risk_level) : ''
+            const zone = flood.flood_zone != null && flood.flood_zone !== '' ? String(flood.flood_zone) : ''
+            return [risk, zone].filter(Boolean).join(' ').trim()
           }
           case 'fire_station': {
-            const d = fire.distance != null ? String(fire.distance) : ''
             const n = fire.name != null ? String(fire.name) : ''
-            return `${d}${d && n ? ' ' : ''}${n}`.trim()
+            const d = fire.distance != null ? String(fire.distance) : ''
+            return [n, d].filter(Boolean).join(' ').trim()
           }
           case 'weather': {
             const v = wx.risk_level
@@ -81,6 +83,18 @@ export function useElevenLabs({ onMessage, onStatusChange, onComplete, onStartFa
           }
           case 'bedrooms': {
             const v = pd.bedrooms
+            return v != null && v !== '' ? String(v) : ''
+          }
+          case 'bathrooms': {
+            const v = pd.bathrooms_full
+            return v != null && v !== '' ? String(v) : ''
+          }
+          case 'property_type': {
+            const v = pd.property_type
+            return v != null && v !== '' ? String(v) : ''
+          }
+          case 'neighborhood': {
+            const v = census.median_year_built
             return v != null && v !== '' ? String(v) : ''
           }
           case 'address': {
