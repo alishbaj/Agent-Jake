@@ -13,16 +13,7 @@ function formatDetail(body) {
   return 'Request failed'
 }
 
-/**
- * @param {string} address
- * @returns {Promise<Record<string, unknown>>}
- */
-export async function getLocationData(address) {
-  const trimmed = String(address).trim()
-  if (!trimmed) throw new Error('Address is empty.')
-
-  const url = `${apiBase()}/location-data?address=${encodeURIComponent(trimmed)}`
-  const res = await fetch(url)
+async function parseResponse(res) {
   const text = await res.text()
   let body
   try {
@@ -34,52 +25,59 @@ export async function getLocationData(address) {
   return body
 }
 
-import { BACKEND_URL } from "../config/backendBase"
+/**
+ * @param {string} address
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function getLocationData(address) {
+  const trimmed = String(address).trim()
+  if (!trimmed) throw new Error('Address is empty.')
+  const res = await fetch(`${apiBase()}/location-data?address=${encodeURIComponent(trimmed)}`)
+  return parseResponse(res)
+}
 
-// Used when Jake finishes — sends raw transcript
-export const submitFromTranscript = async (transcript, email = "") => {
-  const response = await fetch(`${BACKEND_URL}/api/assess-from-transcript`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+/**
+ * Used when Jake finishes — sends raw ElevenLabs transcript to backend.
+ * Gemini extracts answers, runs scoring, returns full dashboard data.
+ * @param {string} transcript
+ * @param {string} email
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function submitFromTranscript(transcript, email = '') {
+  const res = await fetch(`${apiBase()}/api/assess-from-transcript`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ transcript, email })
   })
-
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.detail || "Assessment failed")
-  }
-
-  return response.json()
+  return parseResponse(res)
 }
 
-// Used when manual quiz form is submitted
-export const submitAssessment = async (answers) => {
-  const response = await fetch(`${BACKEND_URL}/api/assess`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+/**
+ * Used when manual quiz form is submitted directly.
+ * @param {Record<string, unknown>} answers
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function submitAssessment(answers) {
+  const res = await fetch(`${apiBase()}/api/assess`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(answers)
   })
-
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.detail || "Assessment failed")
-  }
-
-  return response.json()
+  return parseResponse(res)
 }
 
-// Used when user marks a goal complete
-export const completeGoal = async (action, oldScore, newScore) => {
-  const response = await fetch(`${BACKEND_URL}/api/goal-complete`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      action,
-      old_score: oldScore,
-      new_score: newScore
-    })
+/**
+ * Used when user marks a recommendation goal as complete.
+ * @param {string} action
+ * @param {number} oldScore
+ * @param {number} newScore
+ * @returns {Promise<{ message: string }>}
+ */
+export async function completeGoal(action, oldScore, newScore) {
+  const res = await fetch(`${apiBase()}/api/goal-complete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, old_score: oldScore, new_score: newScore })
   })
-
-  if (!response.ok) throw new Error("Goal completion failed")
-  return response.json()
+  return parseResponse(res)
 }
