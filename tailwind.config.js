@@ -8,7 +8,12 @@ export default {
           red: '#CC0000',
           'red-dark': '#a30000',
           blue: '#003087',
+          /** Lighter hero blue (decorative circles / inner brand tone on landing) */
           'blue-mid': '#1a4ba0',
+          /** Page shell behind cream panels (assessment + results) */
+          'blue-page': '#1a4ba0',
+          /** Soft inner panel */
+          cream: '#f5f4eb',
           gold: '#F2A900',
           green: '#2e7d32',
           orange: '#e65100',
@@ -22,6 +27,7 @@ export default {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'fade-in': 'fadeIn 0.6s ease forwards',
         'slide-up': 'slideUp 0.5s ease forwards',
+        'stream-in': 'streamIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) both',
         'orb-float': 'orbFloat 6s ease-in-out infinite',
         'glow': 'glow 2s ease-in-out infinite alternate',
       },
@@ -32,6 +38,10 @@ export default {
         },
         slideUp: {
           from: { opacity: '0', transform: 'translateY(20px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+        streamIn: {
+          from: { opacity: '0', transform: 'translateY(10px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
         },
         orbFloat: {

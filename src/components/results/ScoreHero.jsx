@@ -1,9 +1,21 @@
 import { useEffect, useState } from 'react'
 
 const TIER_COLORS = {
-  low:      { text: 'text-green-400',  ring: '#22c55e', bg: 'from-green-900/30 to-transparent' },
-  moderate: { text: 'text-amber-400',  ring: '#f59e0b', bg: 'from-amber-900/30 to-transparent' },
-  high:     { text: 'text-red-500',    ring: '#ef4444', bg: 'from-red-900/30 to-transparent'   },
+  low: {
+    text: 'text-green-700',
+    ring: '#15803d',
+    sub: 'text-gray-600',
+  },
+  moderate: {
+    text: 'text-amber-700',
+    ring: '#b45309',
+    sub: 'text-gray-600',
+  },
+  high: {
+    text: 'text-red-600',
+    ring: '#dc2626',
+    sub: 'text-gray-600',
+  },
 }
 
 function getTier(score) {
@@ -12,12 +24,11 @@ function getTier(score) {
   return 'high'
 }
 
-export default function ScoreHero({ score, originalScore, tier, tierLabel, tierSub, components }) {
+export default function ScoreHero({ score, originalScore, tierLabel, tierSub, components }) {
   const [displayed, setDisplayed] = useState(0)
   const resolvedTier = getTier(score)
   const colors = TIER_COLORS[resolvedTier]
   const circumference = 2 * Math.PI * 42
-  const progress = (score / 100) * circumference
 
   useEffect(() => {
     let start = 0
@@ -37,19 +48,23 @@ export default function ScoreHero({ score, originalScore, tier, tierLabel, tierS
   }, [score])
 
   return (
-    <div className={`rounded-2xl bg-gradient-to-br ${colors.bg} border border-white/8 p-8`}
-      style={{ background: 'rgba(255,255,255,0.03)' }}>
-
+    <div className="rounded-2xl border border-gray-200/90 bg-white/90 backdrop-blur-sm p-6 sm:p-8 shadow-sm">
       <div className="flex flex-col lg:flex-row items-center lg:items-start gap-8">
-
-        {/* Score circle */}
         <div className="relative flex-shrink-0">
           <svg className="w-44 h-44 -rotate-90" viewBox="0 0 100 100">
-            {/* Track */}
-            <circle cx="50" cy="50" r="42" fill="none"
-              stroke="rgba(255,255,255,0.06)" strokeWidth="7"/>
-            {/* Progress */}
-            <circle cx="50" cy="50" r="42" fill="none"
+            <circle
+              cx="50"
+              cy="50"
+              r="42"
+              fill="none"
+              stroke="rgba(0,48,135,0.08)"
+              strokeWidth="7"
+            />
+            <circle
+              cx="50"
+              cy="50"
+              r="42"
+              fill="none"
               stroke={colors.ring}
               strokeWidth="7"
               strokeDasharray={circumference}
@@ -59,50 +74,45 @@ export default function ScoreHero({ score, originalScore, tier, tierLabel, tierS
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className={`font-display text-5xl font-black ${colors.text}`}>
-              {displayed}
-            </span>
-            <span className="text-white/40 text-xs font-semibold tracking-widest uppercase mt-1">
+            <span className={`font-display text-5xl font-black ${colors.text}`}>{displayed}</span>
+            <span className="text-gray-500 text-xs font-semibold tracking-widest uppercase mt-1">
               out of 100
             </span>
           </div>
         </div>
 
-        {/* Right side */}
         <div className="flex-1 text-center lg:text-left">
-          <div className="text-xs font-bold tracking-widest uppercase text-white/30 mb-2">
+          <div className="text-xs font-bold tracking-widest uppercase text-gray-400 mb-2">
             Your Risk Score
           </div>
-          <h1 className={`font-display text-4xl font-black mb-1 ${colors.text}`}>
-            {tierLabel}
-          </h1>
-          <p className="text-white/50 text-sm mb-6">{tierSub}</p>
+          <h1 className={`font-display text-4xl font-black mb-1 ${colors.text}`}>{tierLabel}</h1>
+          <p className={`text-sm mb-6 ${colors.sub}`}>{tierSub}</p>
 
-          {/* Score was updated notice */}
           {score !== originalScore && (
-            <div className="inline-flex items-center gap-2 bg-green-900/30 border border-green-500/20 rounded-full px-3 py-1.5 mb-4">
-              <span className="text-green-400 text-xs font-bold">
+            <div className="inline-flex items-center gap-2 bg-green-50 border border-green-200/80 rounded-full px-3 py-1.5 mb-4">
+              <span className="text-green-800 text-xs font-bold">
                 ↓ {originalScore - score} points saved by completing goals
               </span>
             </div>
           )}
 
-          {/* Component bars */}
           <div className="space-y-3">
             {components.map((c) => {
               const pct = (c.score / c.max) * 100
               return (
                 <div key={c.label}>
                   <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs text-white/50 font-medium">{c.label}</span>
-                    <span className="text-xs text-white/40">{c.score}/{c.max} pts</span>
+                    <span className="text-xs text-gray-600 font-medium">{c.label}</span>
+                    <span className="text-xs text-gray-500">
+                      {c.score}/{c.max} pts
+                    </span>
                   </div>
-                  <div className="h-1.5 bg-white/8 rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all duration-1000"
                       style={{
                         width: `${pct}%`,
-                        background: pct > 70 ? '#ef4444' : pct > 40 ? '#f59e0b' : '#22c55e',
+                        background: pct > 70 ? '#dc2626' : pct > 40 ? '#d97706' : '#15803d',
                       }}
                     />
                   </div>
@@ -111,7 +121,6 @@ export default function ScoreHero({ score, originalScore, tier, tierLabel, tierS
             })}
           </div>
         </div>
-
       </div>
     </div>
   )

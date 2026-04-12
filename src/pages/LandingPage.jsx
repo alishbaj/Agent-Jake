@@ -1,23 +1,35 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import ConsentModal from '../components/ConsentModal'
 
 export default function LandingPage() {
   const [showConsent, setShowConsent] = useState(false)
+  const [mainFade, setMainFade] = useState(false)
+  const [navFade, setNavFade] = useState(false)
   const navigate = useNavigate()
 
   function handleStart() {
-    setShowConsent(true)
+    setMainFade(true)
+    window.setTimeout(() => {
+      setShowConsent(true)
+    }, 300)
   }
 
   function handleAccept() {
-    setShowConsent(false)
-    navigate('/assessment')
+    setNavFade(true)
+    setMainFade(true)
+    window.setTimeout(() => {
+      setShowConsent(false)
+      navigate('/assessment')
+      setMainFade(false)
+      setNavFade(false)
+    }, 300)
   }
 
   function handleDecline() {
     setShowConsent(false)
+    setMainFade(false)
   }
 
   return (
@@ -26,9 +38,18 @@ export default function LandingPage() {
         <ConsentModal onAccept={handleAccept} onDecline={handleDecline} />
       )}
 
-      <Navbar />
+      <div
+        className="transition-opacity duration-300 ease-out"
+        style={{ opacity: navFade ? 0 : 1 }}
+      >
+        <Navbar />
+      </div>
 
-      <main className="pt-16 min-h-screen flex flex-col">
+      <main
+        className={`pt-16 min-h-screen flex flex-col transition-opacity duration-300 ease-out ${
+          mainFade ? 'opacity-0' : 'opacity-100'
+        }`}
+      >
 
         {/* ── HERO — blue section ── */}
         <div className="relative bg-sf-blue flex-1 flex items-center overflow-hidden">
@@ -72,8 +93,9 @@ export default function LandingPage() {
 
               {/* CTA */}
               <button
+                type="button"
                 onClick={handleStart}
-                className="group inline-flex items-center gap-3 bg-sf-red hover:bg-sf-red-dark text-white font-bold text-base px-8 py-4 rounded-xl transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-sf-red/30"
+                className="group btn-press inline-flex items-center gap-3 bg-sf-red hover:bg-sf-red-dark text-white font-bold text-base px-8 py-4 rounded-xl hover:shadow-xl hover:shadow-sf-red/30"
               >
                 <span className="relative flex h-3 w-3">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60" />
@@ -81,7 +103,7 @@ export default function LandingPage() {
                 </span>
                 Start My Assessment with Agent Jake
                 <svg
-                  className="w-5 h-5 group-hover:translate-x-1 transition-transform"
+                  className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300"
                   fill="none" stroke="currentColor" viewBox="0 0 24 24"
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
@@ -98,7 +120,7 @@ export default function LandingPage() {
               <div className="relative">
                 <div className="absolute inset-0 rounded-3xl bg-sf-red/20 blur-2xl scale-95 animate-pulse-slow" />
 
-                <div className="relative bg-white rounded-3xl shadow-2xl p-8 w-80">
+                <div className="relative bg-white rounded-3xl shadow-2xl p-8 w-80 transition-transform duration-300 hover:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.2)]">
                   <div className="text-[10px] font-bold tracking-[3px] uppercase text-gray-400 mb-5">
                     Agent Jake AI
                   </div>
@@ -115,7 +137,8 @@ export default function LandingPage() {
                           className="w-full h-full object-cover"
                           onError={(e) => {
                             e.target.style.display = 'none'
-                            e.target.parentElement.innerHTML = '<div class="w-full h-full flex items-center justify-center text-4xl">🏠</div>'
+                            e.target.parentElement.innerHTML =
+                              '<div class="w-full h-full flex items-center justify-center text-sm font-bold text-white">AJ</div>'
                           }}
                         />
                       </div>
@@ -150,58 +173,30 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* ── HOW IT WORKS ── */}
-        <div className="bg-white py-16 px-6">
-          <div className="max-w-4xl mx-auto">
-            <p className="text-center text-xs font-bold tracking-widest uppercase text-gray-400 mb-10">
-              How It Works
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {[
-                {
-                  step: '01',
-                  icon: '🎙️',
-                  title: 'Talk to Agent Jake',
-                  desc: 'Answer a few voice questions about your home. No forms, no typing — just a natural conversation.',
-                },
-                {
-                  step: '02',
-                  icon: '📡',
-                  title: 'We Pull Real Data',
-                  desc: 'Agent Jake looks up your flood zone, fire station distance, and live weather alerts automatically.',
-                },
-                {
-                  step: '03',
-                  icon: '📊',
-                  title: 'Get Your Risk Score',
-                  desc: 'Receive a transparent 0–100 score with clear explanations and ranked actions to lower your risk.',
-                },
-              ].map(({ step, icon, title, desc }) => (
-                <div key={step} className="text-center">
-                  <div className="text-[10px] font-black tracking-widest text-sf-red mb-3 uppercase">
-                    Step {step}
-                  </div>
-                  <div className="text-4xl mb-3">{icon}</div>
-                  <h3 className="font-display font-bold text-gray-900 text-lg mb-2">{title}</h3>
-                  <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
       </main>
 
       {/* Footer */}
-      <footer className="bg-gray-900 py-6 px-6">
+      <footer
+        className={`bg-gray-900 py-6 px-6 transition-opacity duration-300 ease-out ${
+          mainFade ? 'opacity-0' : 'opacity-100'
+        }`}
+      >
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <img
-            src="/statefarm-logo.png"
-            alt="State Farm"
-            className="h-8 w-auto"
-            style={{ filter: 'brightness(0) invert(1)' }}
-            onError={(e) => { e.target.style.display = 'none' }}
-          />
+          <Link
+            to="/"
+            className="transition-opacity duration-300 hover:opacity-80 active:scale-[0.98] rounded outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+            aria-label="Home"
+          >
+            <img
+              src="/statefarm-logo.png"
+              alt="State Farm"
+              className="h-12 w-auto"
+              style={{ filter: 'brightness(0) invert(1)' }}
+              onError={(e) => {
+                e.target.style.display = 'none'
+              }}
+            />
+          </Link>
           <p className="text-xs text-gray-500">
             © 2026 State Farm · Agent Jake is a prototype built for WeHack 2026
           </p>

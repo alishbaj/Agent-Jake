@@ -1,4 +1,4 @@
-export default function VoiceOrb({ state, started }) {
+export default function VoiceOrb({ state, started, lightSurround = false }) {
   const isListening = state === 'listening'
   const isSpeaking = state === 'speaking'
   const isThinking = state === 'thinking'
@@ -28,8 +28,12 @@ export default function VoiceOrb({ state, started }) {
             : isSpeaking
             ? 'bg-blue-900/15 scale-105'
             : isThinking
-            ? 'bg-yellow-400/10'
-            : 'bg-gray-800/50'
+            ? lightSurround
+              ? 'bg-amber-400/15'
+              : 'bg-yellow-400/10'
+            : lightSurround
+              ? 'bg-sf-blue/12 scale-100'
+              : 'bg-gray-800/50'
         }`}
       />
 
@@ -41,7 +45,11 @@ export default function VoiceOrb({ state, started }) {
             : isSpeaking
             ? 'bg-gradient-to-br from-sf-blue to-sf-blue-mid'
             : isThinking
-            ? 'bg-gradient-to-br from-gray-700 to-gray-900'
+            ? lightSurround
+              ? 'bg-gradient-to-br from-slate-600 to-slate-800'
+              : 'bg-gradient-to-br from-gray-700 to-gray-900'
+            : lightSurround
+            ? 'bg-gradient-to-br from-sf-blue to-sf-blue-mid'
             : 'bg-gradient-to-br from-gray-800 to-gray-900'
         }`}
       >
@@ -105,7 +113,11 @@ export default function VoiceOrb({ state, started }) {
           )}
 
           {isIdle && !started && (
-            <span className="text-white/40 text-xs font-semibold tracking-widest uppercase">
+            <span
+              className={`text-xs font-semibold tracking-widest uppercase ${
+                lightSurround ? 'text-white/90' : 'text-white/40'
+              }`}
+            >
               Agent Jake
             </span>
           )}

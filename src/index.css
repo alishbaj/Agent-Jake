@@ -9,6 +9,52 @@
   }
 }
 
+/* Route / layout: smooth entry */
+.page-shell-enter {
+  animation: pageShellEnter 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes pageShellEnter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Primary actions: smooth press + hover */
+.btn-press {
+  transition:
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.25s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+.btn-press:hover {
+  transform: translateY(-2px);
+}
+.btn-press:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* Assessment / results inner cards */
+@keyframes creamCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.cream-card-enter {
+  animation: creamCardIn 400ms ease forwards;
+}
+
 /* Voice wave animation bars */
 .wave-bar {
   animation: waveBar 1.2s ease-in-out infinite;
