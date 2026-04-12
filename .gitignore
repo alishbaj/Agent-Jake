@@ -25,3 +25,7 @@ Thumbs.db
 # Python
 __pycache__/
 *.py[cod]
+
+# Backend — secrets and venv (never commit)
+backend/.env
+backend/venv/

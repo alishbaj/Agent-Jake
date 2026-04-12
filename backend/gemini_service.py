@@ -115,3 +115,81 @@ def should_generate_weather_alert(weather_data: dict) -> bool:
         weather_data.get("alert_count", 0) > 0
         and weather_data.get("risk_level") not in ["No Active Alerts", "Unable to retrieve"]
     )
+
+def extract_intake_from_transcript(transcript: str) -> dict:
+    """
+    Takes the raw ElevenLabs conversation transcript and uses Gemini
+    to extract the structured intake answers from it.
+    """
+    prompt = f"""
+You are a data extraction assistant. Below is a conversation transcript between 
+a user and an AI home risk assessment assistant named Jake.
+
+Extract the homeowner's answers from this transcript and return them as a JSON object.
+Return ONLY raw JSON. No markdown, no code blocks, no explanation outside the JSON.
+
+Transcript:
+{transcript}
+
+Return exactly this structure, using null for any field not mentioned:
+{{
+  "address": "full property address as stated by user or null",
+  "year_built": integer year or null,
+  "construction_type": "Wood frame or Brick or masonry or Concrete block or Unknown or null",
+  "roof_type": "Asphalt shingle or Metal or Tile or clay or Flat or Wood shake or Unknown or null",
+  "roof_age_range": "Under 5 years or 5-10 years or 10-15 years or 15-20 years or Over 20 years or Unknown or null",
+  "square_footage_range": "Under 1000 or 1000-1500 or 1500-2500 or 2500-4000 or Over 4000 or null",
+  "has_security_system": "Yes or No or Unmonitored alarm only or null",
+  "smoke_detectors": "Yes, every floor or Some floors only or No or Not sure or null",
+  "has_water_sensors": "Yes or No or Not sure or null",
+  "has_fire_extinguisher": "Yes or Kitchen only or No or Not sure or null",
+  "flood_storm_mitigation": "Sump pump only or Storm shutters only or Both or Neither or Not applicable or null",
+  "prior_claims_count": "None or 1 claim or 2 claims or 3 or more or null",
+  "prior_claims_type": "Wind or hail or Water damage or Fire or Theft or Liability or Other or N/A or null",
+  "credit_tier": "Excellent or Good or Fair or Poor or Prefer not to say or null",
+  "email": "email address or null"
+}}
+
+Rules:
+- Only extract what the user explicitly stated — do not infer or assume
+- If the user said they don't know, use the closest Unknown or Not sure value
+- For address, capture exactly what the user said including street number, street, city, state
+- For year_built, return an integer like 1997, not a string
+- If a field was skipped or not discussed, return null
+"""
+
+    response = client.models.generate_content(
+        model=MODEL,
+        contents=prompt
+    )
+
+    raw = response.text.strip()
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+    raw = raw.strip()
+
+    intake = json.loads(raw)
+
+    # Replace null values with sensible defaults so scoring doesn't break
+    defaults = {
+        "construction_type": "Unknown",
+        "roof_type": "Unknown",
+        "roof_age_range": "Unknown",
+        "has_security_system": "No",
+        "smoke_detectors": "Not sure",
+        "has_water_sensors": "Not sure",
+        "has_fire_extinguisher": "Not sure",
+        "flood_storm_mitigation": "Neither",
+        "prior_claims_count": "None",
+        "prior_claims_type": "N/A",
+        "credit_tier": "Prefer not to say",
+        "email": ""
+    }
+
+    for key, default in defaults.items():
+        if intake.get(key) is None:
+            intake[key] = default
+
+    return intake

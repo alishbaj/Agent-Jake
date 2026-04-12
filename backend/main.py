@@ -370,3 +370,180 @@ async def list_assessments():
 @app.get("/assessments/by-email/{email}")
 async def get_by_email(email: str):
     return get_assessments_by_email(email)
+
+class TranscriptRequest(BaseModel):
+    transcript: str
+    email: Optional[str] = ""
+
+@app.post("/api/assess-from-transcript")
+async def assess_from_transcript(request: TranscriptRequest):
+    # Step 1: Use Gemini to extract structured answers from transcript
+    try:
+        intake = extract_intake_from_transcript(request.transcript)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Could not parse transcript: {str(e)}")
+
+    # Inject email if provided separately
+    if request.email:
+        intake["email"] = request.email
+
+    if not intake.get("address"):
+        raise HTTPException(status_code=422, detail="No address found in transcript")
+
+    # Step 2: Geocode
+    coords = await get_coordinates(intake["address"])
+    if "error" in coords:
+        raise HTTPException(status_code=400, detail=coords["error"])
+
+    lat = coords["lat"]
+    lng = coords["lng"]
+    zip_code = coords.get("zip_code", "")
+    formatted = coords.get("formatted_address", intake["address"])
+    parts = formatted.split(",")
+    city = parts[1].strip() if len(parts) > 1 else ""
+    state = parts[2].strip().split()[0] if len(parts) > 2 else ""
+
+    # Step 3: Enrich
+    flood, fire, weather, census, property_details, crime, wildfire = await asyncio.gather(
+        get_flood_zone(lat, lng),
+        get_fire_station(lat, lng),
+        get_weather_alerts(lat, lng),
+        get_census_data(zip_code),
+        get_property_details(formatted),
+        get_crime_data(city, state),
+        get_wildfire_risk(lat, lng)
+    )
+
+    api_data = {
+        "flood_zone": flood,
+        "fire_station": fire,
+        "weather_alerts": weather,
+        "census": census,
+        "property_details": property_details,
+        "crime": crime,
+        "wildfire": wildfire
+    }
+
+    # Step 4: Resolve year_built from ATTOM if Jake didn't get it
+    attom_year = property_details.get("year_built") if property_details else None
+    intake["year_built"] = intake.get("year_built") or attom_year
+
+    # Step 5: Score
+    score, tier, score_drivers = calculate_risk_score(intake, api_data)
+
+    # Step 6: Gemini insights
+    risk_profile_for_gemini = {
+        "address": formatted,
+        "year_built": intake.get("year_built"),
+        "construction_type": intake.get("construction_type"),
+        "roof_type": intake.get("roof_type"),
+        "roof_age_range": intake.get("roof_age_range"),
+        "flood_zone": flood.get("flood_zone"),
+        "flood_risk_level": flood.get("risk_level"),
+        "fire_station_distance_miles": fire.get("distance_miles"),
+        "weather_risk": weather.get("risk_level"),
+        "wildfire_risk": wildfire.get("risk_level"),
+        "crime_risk": crime.get("risk_level"),
+        "has_security_system": intake.get("has_security_system"),
+        "smoke_detectors": intake.get("smoke_detectors"),
+        "has_water_sensors": intake.get("has_water_sensors"),
+        "has_fire_extinguisher": intake.get("has_fire_extinguisher"),
+        "flood_storm_mitigation": intake.get("flood_storm_mitigation"),
+        "prior_claims_count": intake.get("prior_claims_count"),
+        "prior_claims_type": intake.get("prior_claims_type"),
+        "credit_tier": intake.get("credit_tier"),
+    }
+
+    try:
+        gemini_result = generate_risk_insights(
+            risk_profile=risk_profile_for_gemini,
+            score=score,
+            score_drivers=score_drivers
+        )
+        gemini_summary = gemini_result.get("summary", "")
+        gemini_recommendations = gemini_result.get("recommendations", [])
+    except Exception as e:
+        print(f"Gemini insights error: {e}")
+        gemini_summary = "Risk assessment complete. See your score breakdown below."
+        gemini_recommendations = []
+
+    # Step 7: Weather alert
+    weather_alert_message = None
+    if should_generate_weather_alert(weather):
+        try:
+            weather_alert_message = generate_weather_alert_message(
+                alert_data=weather,
+                risk_profile={
+                    "roof_age": intake.get("roof_age_range"),
+                    "roof_material": intake.get("roof_type"),
+                    "has_storm_shutters": "storm shutters" in (intake.get("flood_storm_mitigation") or "").lower(),
+                    "flood_zone": flood.get("flood_zone"),
+                    "has_sump_pump": "sump pump" in (intake.get("flood_storm_mitigation") or "").lower(),
+                }
+            )
+        except Exception as e:
+            print(f"Gemini weather alert error: {e}")
+
+    # Step 8: Save
+    assessment_data = {
+        "address": intake.get("address"),
+        "formatted_address": formatted,
+        "zip_code": zip_code,
+        "lat": lat,
+        "lng": lng,
+        "flood_zone": flood,
+        "fire_station": fire,
+        "weather_alerts": weather,
+        "census": census,
+        "property_details": property_details,
+        "crime": crime,
+        "wildfire": wildfire,
+        "year_built": intake.get("year_built"),
+        "construction_type": intake.get("construction_type"),
+        "roof_type": intake.get("roof_type"),
+        "roof_age_range": intake.get("roof_age_range"),
+        "square_footage_range": intake.get("square_footage_range"),
+        "has_security_system": intake.get("has_security_system"),
+        "smoke_detectors": intake.get("smoke_detectors"),
+        "has_water_sensors": intake.get("has_water_sensors"),
+        "has_fire_extinguisher": intake.get("has_fire_extinguisher"),
+        "flood_storm_mitigation": intake.get("flood_storm_mitigation"),
+        "prior_claims_count": intake.get("prior_claims_count"),
+        "prior_claims_type": intake.get("prior_claims_type"),
+        "credit_tier": intake.get("credit_tier"),
+        "email": intake.get("email"),
+        "risk_score": score,
+        "risk_tier": tier,
+        "score_drivers": score_drivers,
+        "gemini_summary": gemini_summary,
+        "gemini_recommendations": gemini_recommendations,
+        "full_assessment": {
+            **api_data,
+            "intake": intake,
+            "score": score,
+            "tier": tier,
+            "drivers": score_drivers,
+            "gemini_summary": gemini_summary,
+            "recommendations": gemini_recommendations,
+            "weather_alert_message": weather_alert_message,
+        }
+    }
+
+    assessment_id = save_assessment(assessment_data)
+
+    return {
+        "assessment_id": assessment_id,
+        "score": score,
+        "risk_tier": tier,
+        "score_drivers": score_drivers,
+        "summary": gemini_summary,
+        "recommendations": gemini_recommendations,
+        "weather_alert_message": weather_alert_message,
+        "api_data": api_data,
+        "extracted_intake": intake,
+        "attom_prefill": {
+            "year_built": attom_year,
+            "square_footage": property_details.get("square_footage_living") if property_details else None,
+            "property_type": property_details.get("property_type") if property_details else None,
+        }
+    }
