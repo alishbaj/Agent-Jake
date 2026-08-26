@@ -3,10 +3,9 @@ from typing import Any
 
 def calculate_risk_score(intake: dict, api_data: dict) -> tuple[int, list]:
     """
-    Returns (score, score_drivers).
+    Returns (score, tier, score_drivers).
     score: integer 0-100, lower = lower risk.
-    score_drivers: list of dicts explaining what raised/lowered the score.
-    Lower score = better. High Risk = 66-100, Moderate = 36-65, Low = 0-35.
+    Low Risk = 0-35, Moderate Risk = 36-65, High Risk = 66-100.
     """
 
     score = 0
@@ -16,27 +15,27 @@ def calculate_risk_score(intake: dict, api_data: dict) -> tuple[int, list]:
     roof_age = intake.get("roof_age_range", "Unknown")
     roof_map = {
         "Under 5 years":  (-5,  "New roof significantly reduces storm and leak risk"),
-        "5-10 years":     (0,   "Roof age is within expected range"),
-        "10-15 years":    (8,   "Roof is approaching mid-life — worth monitoring"),
-        "15-20 years":    (16,  "Roof age is elevated — major risk factor for storm damage"),
-        "Over 20 years":  (24,  "Roof over 20 years is the single largest risk factor"),
-        "Unknown":        (10,  "Roof age unknown — moderate risk assumed"),
+        "5-10 years":     (5,   "Roof age is within acceptable range"),
+        "10-15 years":    (14,  "Roof approaching mid-life — increased storm vulnerability"),
+        "15-20 years":    (22,  "Aging roof is a major risk factor for storm and water damage"),
+        "Over 20 years":  (30,  "Roof over 20 years is the single largest risk factor"),
+        "Unknown":        (14,  "Roof age unknown — elevated risk assumed per industry standard"),
     }
-    delta, reason = roof_map.get(roof_age, (10, "Roof age unknown"))
+    delta, reason = roof_map.get(roof_age, (14, "Roof age unknown"))
     score += delta
     drivers.append({"factor": "Roof age", "value": roof_age, "delta": delta, "reason": reason})
 
     # ── 2. ROOF TYPE ─────────────────────────────────────────────────────────
     roof_type = intake.get("roof_type", "Unknown")
     roof_type_map = {
-        "Metal":          -6,
-        "Tile or clay":   -4,
-        "Asphalt shingle": 0,
-        "Flat":            6,
-        "Wood shake":      8,
-        "Unknown":         3,
+        "Metal":           -6,
+        "Tile or clay":    -4,
+        "Asphalt shingle":  3,
+        "Flat":             9,
+        "Wood shake":      12,
+        "Unknown":          6,
     }
-    delta = roof_type_map.get(roof_type, 3)
+    delta = roof_type_map.get(roof_type, 6)
     score += delta
     if delta != 0:
         reason = f"{roof_type} roofs have {'lower' if delta < 0 else 'higher'} vulnerability to storm and hail damage"
@@ -52,34 +51,44 @@ def calculate_risk_score(intake: dict, api_data: dict) -> tuple[int, list]:
                 delta = -4
                 reason = "Home built within last 10 years — modern building codes reduce risk"
             elif age < 20:
-                delta = 0
-                reason = "Home age is within average range"
+                delta = 3
+                reason = "Home age is within average range — minor aging risk"
             elif age < 40:
-                delta = 5
-                reason = "Home is 20–40 years old — some systems may be aging"
+                delta = 9
+                reason = "Home is 20–40 years old — systems showing age-related wear"
             elif age < 60:
-                delta = 10
-                reason = "Home is 40–60 years old — electrical and plumbing risk increases"
+                delta = 15
+                reason = "Home is 40–60 years old — elevated electrical and plumbing risk"
             else:
-                delta = 16
-                reason = "Home over 60 years old — elevated structural and systems risk"
+                delta = 22
+                reason = "Home over 60 years old — high structural and systems risk"
             score += delta
             drivers.append({"factor": "Home age", "value": f"Built {year_built}", "delta": delta, "reason": reason})
         except (ValueError, TypeError):
             pass
+    else:
+        # Unknown home age — apply moderate penalty
+        delta = 10
+        score += delta
+        drivers.append({"factor": "Home age", "value": "Unknown", "delta": delta,
+                        "reason": "Home age unknown — moderate risk assumed"})
 
     # ── 4. CONSTRUCTION TYPE ─────────────────────────────────────────────────
     construction = intake.get("construction_type", "Unknown")
     construction_map = {
         "Brick or masonry": -5,
         "Concrete block":   -3,
-        "Wood frame":        5,
-        "Unknown":           2,
+        "Wood frame":        8,
+        "Unknown":           8,
     }
-    delta = construction_map.get(construction, 2)
+    delta = construction_map.get(construction, 8)
     score += delta
     if delta != 0:
-        reason = f"{construction} construction has {'better' if delta < 0 else 'lower'} fire and wind resistance"
+        reason = (
+            f"{construction} construction has {'better' if delta < 0 else 'lower'} fire and wind resistance"
+            if construction != "Unknown"
+            else "Construction type unknown — wood frame risk assumed per housing stock average"
+        )
         drivers.append({"factor": "Construction type", "value": construction, "delta": delta, "reason": reason})
 
     # ── 5. FLOOD ZONE ────────────────────────────────────────────────────────
@@ -87,14 +96,14 @@ def calculate_risk_score(intake: dict, api_data: dict) -> tuple[int, list]:
     flood_zone = flood.get("flood_zone", "X")
     flood_risk = flood.get("risk_level", "Minimal Risk")
     flood_map = {
-        "High Risk":           14,
-        "High Risk (Coastal)": 18,
-        "Moderate Risk":        6,
+        "High Risk":           18,
+        "High Risk (Coastal)": 24,
+        "Moderate Risk":        9,
         "Minimal Risk":         0,
-        "Undetermined Risk":    4,
-        "Unknown":              3,
+        "Undetermined Risk":    6,
+        "Unknown":              5,
     }
-    delta = flood_map.get(flood_risk, 3)
+    delta = flood_map.get(flood_risk, 5)
     score += delta
     if delta > 0:
         drivers.append({
@@ -110,12 +119,12 @@ def calculate_risk_score(intake: dict, api_data: dict) -> tuple[int, list]:
     distance_miles = fire.get("distance_miles")
     fire_map = {
         "Low Risk":      -3,
-        "Moderate Risk":  3,
-        "Elevated Risk":  8,
-        "High Risk":     14,
-        "Unknown":        4,
+        "Moderate Risk":  5,
+        "Elevated Risk": 12,
+        "High Risk":     18,
+        "Unknown":        6,
     }
-    delta = fire_map.get(fire_risk, 4)
+    delta = fire_map.get(fire_risk, 6)
     score += delta
     distance_str = f"{distance_miles} miles" if distance_miles else "unknown distance"
     drivers.append({
@@ -129,14 +138,14 @@ def calculate_risk_score(intake: dict, api_data: dict) -> tuple[int, list]:
     weather = api_data.get("weather_alerts", {})
     weather_risk = weather.get("risk_level", "No Active Alerts")
     weather_map = {
-        "Extreme Weather Risk":  18,
-        "Severe Weather Risk":   12,
-        "Moderate Weather Risk":  6,
-        "Minor Weather Risk":     3,
+        "Extreme Weather Risk":  22,
+        "Severe Weather Risk":   16,
+        "Moderate Weather Risk":  9,
+        "Minor Weather Risk":     5,
         "No Active Alerts":       0,
-        "Unable to retrieve":     2,
+        "Unable to retrieve":     3,
     }
-    delta = weather_map.get(weather_risk, 2)
+    delta = weather_map.get(weather_risk, 3)
     score += delta
     if delta > 0:
         alert_count = weather.get("alert_count", 0)
@@ -152,12 +161,12 @@ def calculate_risk_score(intake: dict, api_data: dict) -> tuple[int, list]:
     crime_risk = crime.get("risk_level", "Unknown")
     crime_map = {
         "Low Risk":      -2,
-        "Moderate Risk":  3,
-        "Elevated Risk":  7,
-        "High Risk":     12,
-        "Unknown":        2,
+        "Moderate Risk":  6,
+        "Elevated Risk": 11,
+        "High Risk":     16,
+        "Unknown":        5,
     }
-    delta = crime_map.get(crime_risk, 2)
+    delta = crime_map.get(crime_risk, 5)
     score += delta
     if delta != 0:
         rate = crime.get("property_crime_rate_per_100k")
@@ -175,13 +184,13 @@ def calculate_risk_score(intake: dict, api_data: dict) -> tuple[int, list]:
     wildfire_map = {
         "Very Low":      0,
         "Non-burnable":  0,
-        "Low":           2,
-        "Moderate":      6,
-        "High":         12,
-        "Very High":    18,
-        "Unknown":       2,
+        "Low":           3,
+        "Moderate":      9,
+        "High":         16,
+        "Very High":    22,
+        "Unknown":       3,
     }
-    delta = wildfire_map.get(wildfire_risk, 2)
+    delta = wildfire_map.get(wildfire_risk, 3)
     score += delta
     if delta > 0:
         drivers.append({
@@ -194,7 +203,7 @@ def calculate_risk_score(intake: dict, api_data: dict) -> tuple[int, list]:
     # ── 10. SECURITY SYSTEM ──────────────────────────────────────────────────
     security = intake.get("has_security_system", "No")
     if security == "Yes":
-        delta = -8
+        delta = -10
         score += delta
         drivers.append({
             "factor": "Monitored security system",
@@ -203,7 +212,7 @@ def calculate_risk_score(intake: dict, api_data: dict) -> tuple[int, list]:
             "reason": "Monitored alarm reduces theft and liability risk significantly"
         })
     elif security == "Unmonitored alarm only":
-        delta = -3
+        delta = -4
         score += delta
         drivers.append({
             "factor": "Unmonitored alarm",
@@ -212,7 +221,7 @@ def calculate_risk_score(intake: dict, api_data: dict) -> tuple[int, list]:
             "reason": "Unmonitored alarm provides partial theft deterrence"
         })
     else:
-        delta = 5
+        delta = 8
         score += delta
         drivers.append({
             "factor": "No security system",
@@ -226,23 +235,23 @@ def calculate_risk_score(intake: dict, api_data: dict) -> tuple[int, list]:
     smoke_map = {
         "Yes, every floor":  -5,
         "Some floors only":  -2,
-        "No":                 6,
-        "Not sure":           2,
+        "No":                 9,
+        "Not sure":           5,
     }
-    delta = smoke_map.get(smoke, 2)
+    delta = smoke_map.get(smoke, 5)
     score += delta
     if delta != 0:
         reason = (
             "Smoke detectors on every floor significantly reduce fire fatality and damage risk"
             if delta < 0 else
-            "Missing or incomplete smoke detector coverage increases fire risk"
+            "Missing or uncertain smoke detector coverage increases fire risk"
         )
         drivers.append({"factor": "Smoke detectors", "value": smoke, "delta": delta, "reason": reason})
 
     # ── 12. WATER SENSORS ────────────────────────────────────────────────────
     water_sensors = intake.get("has_water_sensors", "No")
     if water_sensors == "Yes":
-        delta = -5
+        delta = -6
         score += delta
         drivers.append({
             "factor": "Water leak sensors",
@@ -251,7 +260,7 @@ def calculate_risk_score(intake: dict, api_data: dict) -> tuple[int, list]:
             "reason": "Smart leak sensors catch water damage early — the #1 non-catastrophe claim driver"
         })
     elif water_sensors == "No":
-        delta = 5
+        delta = 7
         score += delta
         drivers.append({
             "factor": "No water leak sensors",
@@ -259,16 +268,25 @@ def calculate_risk_score(intake: dict, api_data: dict) -> tuple[int, list]:
             "delta": delta,
             "reason": "Water damage is the leading non-catastrophe claim driver — sensors are high-value"
         })
+    else:
+        delta = 4
+        score += delta
+        drivers.append({
+            "factor": "Water leak sensors",
+            "value": "Unknown",
+            "delta": delta,
+            "reason": "Water sensor presence unknown — moderate risk assumed"
+        })
 
     # ── 13. FIRE EXTINGUISHER ────────────────────────────────────────────────
     extinguisher = intake.get("has_fire_extinguisher", "No")
     ext_map = {
         "Yes":          -3,
         "Kitchen only": -1,
-        "No":            3,
-        "Not sure":      1,
+        "No":            5,
+        "Not sure":      3,
     }
-    delta = ext_map.get(extinguisher, 1)
+    delta = ext_map.get(extinguisher, 3)
     score += delta
     if delta != 0:
         drivers.append({
@@ -281,11 +299,11 @@ def calculate_risk_score(intake: dict, api_data: dict) -> tuple[int, list]:
     # ── 14. FLOOD/STORM MITIGATION ───────────────────────────────────────────
     mitigation = intake.get("flood_storm_mitigation", "Neither")
     mit_map = {
-        "Both":               -8,
-        "Sump pump only":     -4,
-        "Storm shutters only": -4,
-        "Neither":             4,
-        "Not applicable":      0,
+        "Both":               -10,
+        "Sump pump only":      -5,
+        "Storm shutters only": -5,
+        "Neither":              7,
+        "Not applicable":       0,
     }
     delta = mit_map.get(mitigation, 0)
     score += delta
@@ -301,9 +319,9 @@ def calculate_risk_score(intake: dict, api_data: dict) -> tuple[int, list]:
     claims = intake.get("prior_claims_count", "None")
     claims_map = {
         "None":       0,
-        "1 claim":    8,
-        "2 claims":  16,
-        "3 or more": 24,
+        "1 claim":   12,
+        "2 claims":  22,
+        "3 or more": 32,
     }
     delta = claims_map.get(claims, 0)
     score += delta
@@ -318,13 +336,13 @@ def calculate_risk_score(intake: dict, api_data: dict) -> tuple[int, list]:
     # ── 16. CREDIT TIER ─────────────────────────────────────────────────────
     credit = intake.get("credit_tier", "Prefer not to say")
     credit_map = {
-        "Excellent":        -10,
-        "Good":              -5,
-        "Fair":               5,
-        "Poor":              12,
-        "Prefer not to say":  0,
+        "Excellent":        -12,
+        "Good":              -6,
+        "Fair":               8,
+        "Poor":              16,
+        "Prefer not to say":  4,
     }
-    delta = credit_map.get(credit, 0)
+    delta = credit_map.get(credit, 4)
     score += delta
     if delta != 0:
         drivers.append({
@@ -344,8 +362,53 @@ def calculate_risk_score(intake: dict, api_data: dict) -> tuple[int, list]:
     else:
         tier = "High Risk"
 
-    # Sort drivers: biggest positive delta first (worst factors),
-    # then negative deltas last (best factors)
     drivers.sort(key=lambda x: x["delta"], reverse=True)
 
     return score, tier, drivers
+
+def calculate_components(intake: dict, api_data: dict, drivers: list) -> list:
+    """
+    Groups score drivers into 5 display categories for the frontend bar chart.
+    Each category shows how much of the total score came from that area.
+    """
+    category_map = {
+        "location": ["Flood zone", "Distance to fire station", "Neighborhood crime", "Wildfire risk"],
+        "property": ["Roof age", "Roof type", "Home age", "Construction type"],
+        "weather":  ["Active weather alerts"],
+        "behavior": ["Monitored security system", "Unmonitored alarm", "No security system",
+                     "Smoke detectors", "Water leak sensors", "No water leak sensors",
+                     "Fire extinguisher", "Flood/storm mitigation", "Prior claims history"],
+        "financial": ["Credit tier"],
+    }
+
+    # Sum deltas per category from actual drivers
+    totals = {"location": 0, "property": 0, "weather": 0, "behavior": 0, "financial": 0}
+    for driver in drivers:
+        factor = driver["factor"]
+        for cat, factors in category_map.items():
+            if any(f.lower() in factor.lower() or factor.lower() in f.lower() for f in factors):
+                totals[cat] += driver["delta"]
+                break
+
+    # Max possible points per category (used for bar scaling)
+    maxes = {"location": 30, "property": 30, "weather": 22, "behavior": 20, "financial": 16}
+
+    labels = {
+        "location": "Location Risk",
+        "property": "Property Risk",
+        "weather":  "Weather Exposure",
+        "behavior": "Behavior & Maintenance",
+        "financial": "Financial Stability",
+    }
+
+    components = []
+    for cat in ["location", "property", "weather", "behavior", "financial"]:
+        raw = totals[cat]
+        clamped = max(0, min(maxes[cat], raw))
+        components.append({
+            "label": labels[cat],
+            "score": clamped,
+            "max": maxes[cat],
+        })
+
+    return components

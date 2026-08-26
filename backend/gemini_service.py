@@ -193,3 +193,28 @@ Rules:
             intake[key] = default
 
     return intake
+
+def generate_seasonal_alert(location: str, weather_risk: str, month: int) -> str:
+    """
+    Generates a seasonal home maintenance tip relevant to the location and time of year.
+    """
+    seasons = {
+        12: "winter", 1: "winter", 2: "winter",
+        3: "spring",  4: "spring", 5: "spring",
+        6: "summer",  7: "summer", 8: "summer",
+        9: "fall",   10: "fall",  11: "fall",
+    }
+    season = seasons.get(month, "spring")
+
+    prompt = f"""
+You are a home safety advisor. Generate a single short seasonal home maintenance tip (max 15 words).
+
+Location: {location}
+Current season: {season}
+Weather risk level: {weather_risk}
+
+Return only the tip text. No punctuation at the end. No formatting. No emojis.
+Example: Pre-summer checklist active — inspect roof, clear gutters, check AC
+"""
+    response = client.models.generate_content(model=MODEL, contents=prompt)
+    return response.text.strip()
